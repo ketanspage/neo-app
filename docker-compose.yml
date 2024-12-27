@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  minio:
+    image: minio/minio
+    container_name: minio
+    ports:
+      - "9000:9000"
+      - "9090:9090"
+    environment:
+      MINIO_ROOT_USER: "ketan"
+      MINIO_ROOT_PASSWORD: "password123"
+    volumes:
+      - ./minio-data:/data
+    command: server /data --console-address ":9090"
