@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router'
 import { useForm, SubmitHandler } from 'react-hook-form'
 import { AlertCircle } from 'lucide-react'
@@ -10,31 +10,85 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 
+interface Template {
+    id: number;
+    name: string;
+    description: string | null;
+    bucketUrl: string;
+    createdAt: string;
+    updatedAt: string;
+}
+
 interface FormData {
     title: string;
     description: string;
-    difficulty: 'Beginner' | 'Intermediate' | 'Advanced';
-    status: 'Not Started' | 'In Progress' | 'Completed';
+    templateId: string;
 }
 
 export default function NewAssignmentForm() {
     const navigate = useNavigate()
     const [error, setError] = useState('')
-    const { register, handleSubmit, formState: { errors }, control } = useForm<FormData>()
+    const [templates, setTemplates] = useState<Template[]>([])
+    const [loading, setLoading] = useState(true)
+    const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<FormData>()
+
+    // Fetch templates when component mounts
+    useEffect(() => {
+        const fetchTemplates = async () => {
+            try {
+                const response = await fetch('http://localhost:3000/api/templates/listTemplates')
+                const data = await response.json()
+                
+                if (!response.ok) {
+                    throw new Error(data.error || 'Failed to fetch templates')
+                }
+                
+                setTemplates(data.templates)
+            } catch (err) {
+                setError('Failed to load templates')
+                console.error('Error loading templates:', err)
+            } finally {
+                setLoading(false)
+            }
+        }
+
+        fetchTemplates()
+    }, [])
 
     const onSubmit: SubmitHandler<FormData> = async (data) => {
         setError('')
 
         try {
-            // Simulating API call
-            await new Promise(resolve => setTimeout(resolve, 1000))
+            // Find the selected template to get its files
+            const selectedTemplate = templates.find(t => t.id === parseInt(data.templateId))
+            
+            if (!selectedTemplate) {
+                throw new Error('Selected template not found')
+            }
 
-            console.log('New Assignment:', data)
+            const response = await fetch('http://localhost:3000/api/assignments/createAssignment', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    title: data.title,
+                    description: data.description,
+                    templateId: parseInt(data.templateId),
+                    files: {} // You might want to get this from the template or allow user input
+                }),
+            })
+
+            const result = await response.json()
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Failed to create assignment')
+            }
 
             // Redirect to assignments list after successful creation
             navigate('/assignments')
         } catch (err) {
-            setError('Failed to create assignment. Please try again.')
+            setError(err instanceof Error ? err.message : 'Failed to create assignment')
         }
     }
 
@@ -44,7 +98,6 @@ export default function NewAssignmentForm() {
                 <h1 className='text-2xl font-semibold'>Create New Assignment</h1>
                 <p>Add a new coding challenge to improve your skills</p>
             </div>
-
 
             <form onSubmit={handleSubmit(onSubmit)}>
                 <div className="grid w-full items-center gap-4">
@@ -57,6 +110,7 @@ export default function NewAssignmentForm() {
                         />
                         {errors.title && <span className="text-red-500 text-sm">{errors.title.message}</span>}
                     </div>
+
                     <div className="flex flex-col space-y-1.5">
                         <Label htmlFor="description">Description</Label>
                         <Textarea
@@ -66,41 +120,38 @@ export default function NewAssignmentForm() {
                         />
                         {errors.description && <span className="text-red-500 text-sm">{errors.description.message}</span>}
                     </div>
+
                     <div className="flex flex-col space-y-1.5">
-                        <Label htmlFor="difficulty">Difficulty</Label>
-                        <Select defaultValue="">
-                            <SelectTrigger id="difficulty">
-                                <SelectValue placeholder="Select difficulty" />
+                        <Label htmlFor="template">Template</Label>
+                        <Select 
+                            onValueChange={(value) => setValue('templateId', value)}
+                            defaultValue=""
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select a template" />
                             </SelectTrigger>
-                            <SelectContent position="popper">
-                                <SelectItem value="Beginner">Beginner</SelectItem>
-                                <SelectItem value="Intermediate">Intermediate</SelectItem>
-                                <SelectItem value="Advanced">Advanced</SelectItem>
+                            <SelectContent>
+                                {templates.map((template) => (
+                                    <SelectItem 
+                                        key={template.id} 
+                                        value={template.id.toString()}
+                                    >
+                                        {template.name}
+                                    </SelectItem>
+                                ))}
                             </SelectContent>
                         </Select>
-                        {errors.difficulty && <span className="text-red-500 text-sm">{errors.difficulty.message}</span>}
-                    </div>
-                    <div className="flex flex-col space-y-1.5">
-                        <Label htmlFor="status">Initial Status</Label>
-                        <Select>
-                            <SelectTrigger id="status">
-                                <SelectValue placeholder="Select initial status" />
-                            </SelectTrigger>
-                            <SelectContent position="popper">
-                                <SelectItem value="Not Started">Not Started</SelectItem>
-                                <SelectItem value="In Progress">In Progress</SelectItem>
-                                <SelectItem value="Completed">Completed</SelectItem>
-                            </SelectContent>
-                        </Select>
-                        {errors.status && <span className="text-red-500 text-sm">{errors.status.message}</span>}
+                        {errors.templateId && <span className="text-red-500 text-sm">{errors.templateId.message}</span>}
                     </div>
                 </div>
-            </form>
 
-            <div className="flex justify-between mt-10">
-                <Button variant="outline" onClick={() => navigate('/assignments')}>Cancel</Button>
-                <Button onClick={handleSubmit(onSubmit)}>Create Assignment</Button>
-            </div>
+                <div className="flex justify-between mt-10">
+                    <Button type="button" variant="outline" onClick={() => navigate('/assignments')}>
+                        Cancel
+                    </Button>
+                    <Button type="submit">Create Assignment</Button>
+                </div>
+            </form>
 
             {error && (
                 <Alert variant="destructive" className="mt-4">
@@ -112,4 +163,3 @@ export default function NewAssignmentForm() {
         </div>
     )
 }
-

@@ -1,23 +1,163 @@
-import { useState } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useNavigate } from 'react-router'
+import sdk from '@stackblitz/sdk'
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
 import { Card, CardHeader, CardTitle, CardContent, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Alert, AlertDescription } from "@/components/ui/alert"
-import CodeContainer from '../assignments/code-container'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+
+const templates = {
+    react: {
+        name: 'React Template',
+        type: 'create-react-app',
+        files: {
+            'src/App.tsx': `import React from 'react';
+
+export default function App() {
+  return (
+    <div className="p-4">
+      <h1 className="text-2xl font-bold">Hello React!</h1>
+    </div>
+  );
+}`,
+            'src/index.tsx': `import React from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './App';
+
+const root = createRoot(document.getElementById('root')!);
+root.render(<App />);`,
+            'public/index.html': `<!DOCTYPE html>
+<html>
+  <head>
+    <title>React App</title>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>`
+        },
+        defaultFile: 'src/App.tsx'
+    },
+    vanilla: {
+        name: 'Vanilla JS Template',
+        type: 'javascript',
+        files: {
+            'index.js': `// Your JavaScript code here
+document.getElementById('app').innerHTML = \`
+  <h1>Hello Vanilla JS!</h1>
+\`;`,
+            'index.html': `<!DOCTYPE html>
+<html>
+  <head>
+    <title>Vanilla JS App</title>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script src="index.js"></script>
+  </body>
+</html>`,
+            'styles.css': `/* Your styles here */
+body {
+  font-family: sans-serif;
+  padding: 20px;
+}`
+        },
+        defaultFile: 'index.js'
+    },
+    
+}
+
+type TemplateType = keyof typeof templates
 
 function NewTemplate() {
     const [name, setName] = useState('')
     const [description, setDescription] = useState('')
-    const [files] = useState<{ [key: string]: string }>({
-        'src/index.js': '// Your code here',
-        'public/index.html': '<!DOCTYPE html>\n<html>\n<head>\n  <title>Your App</title>\n</head>\n<body>\n  <div id="root"></div>\n</body>\n</html>\n',
-    })
+    const [selectedTemplate, setSelectedTemplate] = useState<TemplateType>('react')
     const [isLoading, setIsLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
     const navigate = useNavigate()
+    const containerRef = useRef<HTMLDivElement>(null)
+    const editorRef = useRef<any>(null)
+
+    const destroyEditor = () => {
+        if (containerRef.current) {
+            containerRef.current.innerHTML = ''
+        }
+        editorRef.current = null
+    }
+
+    const initializeEditor = async () => {
+        if (!containerRef.current) return
+
+        try {
+            setIsLoading(true)
+            setError(null)
+
+            // Destroy existing editor instance
+            destroyEditor()
+
+            const template = templates[selectedTemplate]
+            
+            // Create a new div element for the editor
+            const editorElement = document.createElement('div')
+            containerRef.current.appendChild(editorElement)
+
+            // Initialize new editor
+            const vm = await sdk.embedProject(
+                editorElement,
+                {
+                    files: template.files,
+                    title: name || 'New Template',
+                    description: description || 'New template description',
+                    template: template.type as any
+                },
+                {
+                    openFile: template.defaultFile,
+                    height: 600,
+                    width: '100%',
+                }
+            )
+
+            editorRef.current = vm
+        } catch (err) {
+            console.error('Error embedding Stackblitz:', err)
+        } finally {
+            setIsLoading(false)
+        }
+    }
+
+    useEffect(() => {
+        initializeEditor()
+
+        // Cleanup function
+        return () => {
+            destroyEditor()
+        }
+    }, [selectedTemplate]) // Only reinitialize when template changes
+
+    const handleTemplateChange = (value: TemplateType) => {
+        setSelectedTemplate(value)
+    }
+
+    const handleSaveFiles = async () => {
+        if (!editorRef.current) {
+            throw new Error('Editor not initialized')
+        }
+
+        try {
+            const updatedFiles = await editorRef.current.getFsSnapshot()
+            if (!updatedFiles) {
+                throw new Error('Failed to retrieve code: No files found')
+            }
+            return updatedFiles
+        } catch (error) {
+            console.error('Error getting files:', error)
+            throw new Error('Failed to retrieve code')
+        }
+    }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
@@ -25,11 +165,7 @@ function NewTemplate() {
         setError(null)
 
         try {
-            console.log('Sending request with data:', {
-                name,
-                description,
-                files,
-            })
+            const currentFiles = await handleSaveFiles()
 
             const response = await fetch('http://localhost:3000/api/templates/createTemplate', {
                 method: 'POST',
@@ -39,23 +175,17 @@ function NewTemplate() {
                 body: JSON.stringify({
                     name,
                     description,
-                    files,
+                    files: currentFiles,
                 }),
             })
-
-            console.log('Response status:', response.status)
             
-            // Get the raw text first
             const responseText = await response.text()
-            console.log('Raw response:', responseText)
-
-            // Only try to parse as JSON if we have content
             let data
+
             if (responseText) {
                 try {
                     data = JSON.parse(responseText)
                 } catch (parseError) {
-                    console.error('JSON parse error:', parseError)
                     throw new Error('Invalid response format from server')
                 }
             } else {
@@ -66,7 +196,6 @@ function NewTemplate() {
                 throw new Error(data?.error || `Server error: ${response.status}`)
             }
 
-            console.log('Template created successfully:', data)
             navigate('/templates')
         } catch (err) {
             console.error('Error details:', err)
@@ -90,6 +219,7 @@ function NewTemplate() {
                     )}
                     <form onSubmit={handleSubmit}>
                         <div className="space-y-4 mb-6">
+                           
                             <div>
                                 <Label htmlFor="name">Template Name</Label>
                                 <Input
@@ -110,20 +240,41 @@ function NewTemplate() {
                                     disabled={isLoading}
                                 />
                             </div>
+                            <div>
+                                <Label htmlFor="template-type">Template Type</Label>
+                                <Select
+                                    value={selectedTemplate}
+                                    onValueChange={(value: TemplateType) => handleTemplateChange(value)}
+                                >
+                                    <SelectTrigger className="w-full">
+                                        <SelectValue placeholder="Select a template type" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        {Object.entries(templates).map(([key, value]) => (
+                                            <SelectItem key={key} value={key}>
+                                                {value.name}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
                         </div>
                         <div className="mb-6">
                             <Label>Template Code</Label>
-                            <CodeContainer
-                                project={{
-                                    id: 'new_template',
-                                    title: name || 'New Template',
-                                    description: description || 'New template description',
-                                    files,
-                                    dependencies: {},
-                                }}
+                            <div
+                                ref={containerRef}
+                                className="mt-2 border rounded-md min-h-[600px]"
                             />
                         </div>
-                        <CardFooter className="flex justify-end">
+                        <CardFooter className="flex justify-end space-x-2 px-0">
+                            <Button 
+                                type="button" 
+                                variant="outline"
+                                onClick={() => navigate('/templates')}
+                                disabled={isLoading}
+                            >
+                                Cancel
+                            </Button>
                             <Button 
                                 type="submit" 
                                 disabled={isLoading}
