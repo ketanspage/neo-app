@@ -3,7 +3,7 @@ import { useParams } from 'react-router'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-
+import {Link} from 'react-router'
 interface Attempt {
   id: string;
   submittedAt: string;
@@ -39,8 +39,7 @@ function AssignmentAttempts() {
   }, [id]);
 
   const handleNewAttempt = () => {
-    // In a real application, this would open the Stackblitz WebContainer
-    console.log('Opening Stackblitz WebContainer for a new attempt');
+   
   };
 
   return (
@@ -50,8 +49,9 @@ function AssignmentAttempts() {
         <CardDescription>View your attempts and start a new one</CardDescription>
       </CardHeader>
       <CardContent>
-        <Button onClick={handleNewAttempt} className="mb-4">Start New Attempt</Button>
-        <Table>
+      <Button asChild>
+                    <Link to="/attempts/new">Start New attempts</Link>
+                </Button>        <Table>
           <TableHeader>
             <TableRow>
               <TableHead>Submitted At</TableHead>
