@@ -1,104 +1,239 @@
-import { useState, useEffect } from 'react'
-import { useParams } from 'react-router'
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
-import { Textarea } from "@/components/ui/textarea"
-import CodeContainer from './code-container'
-import { assignmentProjects } from '@/data/assignmentProjects'
+import { useParams } from 'react-router';
+import { useState, useEffect } from 'react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
 interface Assignment {
-    id: string;
+    id: number;
     title: string;
-    description: string;
-    testCases: string;
+    description: string | null;
+    templateId: number | null;
+    bucketUrl: string;
+    createdAt: string;
+    updatedAt: string;
 }
 
 function AssignmentDetailPage() {
-    const { id } = useParams<{ id: string }>()
-    const [assignment, setAssignment] = useState<Assignment | null>(null)
-    const [project, setProject] = useState<typeof assignmentProjects[0] | null>(null)
-    const [output, setOutput] = useState('')
+    const { id } = useParams<{ id: string }>();
+    const [assignment, setAssignment] = useState<Assignment | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [isEditing, setIsEditing] = useState(false);
+    const [updateSuccess, setUpdateSuccess] = useState(false);
 
-    useEffect(() => {
-        const fetchAssignment = async () => {
-            // In a real application, this would be an API call
-            const response = await new Promise<Assignment>((resolve) =>
-                setTimeout(() => resolve({
-                    id: '1',
-                    title: 'React State Management with Hooks',
-                    description: 'Create a counter component using the useState hook. The component should display the current count and have buttons to increment and decrement the count.',
-                    testCases: `describe('Counter', () => {
-  it('should render the initial count', () => {
-    // Test implementation
-  });
+    // Form state
+    const [formData, setFormData] = useState({
+        title: '',
+        description: '',
+        templateId: '',
+        files: []
+    });
 
-  it('should increment the count when the increment button is clicked', () => {
-    // Test implementation
-  });
-
-  it('should decrement the count when the decrement button is clicked', () => {
-    // Test implementation
-  });
-});`
-                }), 500)
-            );
-            setAssignment(response);
-
-            // Fetch the project information
-            const projectInfo = assignmentProjects.find(p => p.id === id);
-            if (projectInfo) {
-                setProject(projectInfo);
+    // Fetch assignment metadata
+    const fetchAssignment = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            
+            const response = await fetch(`http://localhost:3000/api/assignments/getAssignment/${id}`);
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to fetch assignment');
             }
-        };
-
-        fetchAssignment();
-    }, [id]);
-
-    const handleRunTests = () => {
-        // In a real application, this would send the code to a backend for testing
-        setOutput('Running tests...\n\nTests completed!\n\nResults:\n2/3 tests passed.');
+            
+            const assignmentData = data.templates[0];
+            setAssignment(assignmentData);
+            setFormData({
+                title: assignmentData.title,
+                description: assignmentData.description || '',
+                templateId: assignmentData.templateId?.toString() || '',
+                files: []
+            });
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'An error occurred');
+        } finally {
+            setLoading(false);
+        }
     };
 
-    if (!assignment || !project) {
-        return <div>Loading...</div>;
+    useEffect(() => {
+        if (id) {
+            fetchAssignment();
+        }
+    }, [id]);
+
+    const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
+        const { name, value } = e.target;
+        setFormData(prev => ({
+            ...prev,
+            [name]: value
+        }));
+    };
+
+    const handleSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        try {
+            setLoading(true);
+            setError(null);
+            setUpdateSuccess(false);
+
+            const response = await fetch(`http://localhost:3000/api/assignments/editAssignment/${id}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    title: formData.title,
+                    description: formData.description,
+                    templateId: formData.templateId ? parseInt(formData.templateId) : null,
+                    files: formData.files
+                }),
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to update assignment');
+            }
+
+            setUpdateSuccess(true);
+            await fetchAssignment();
+            setIsEditing(false);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Failed to update assignment');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="space-y-4 p-4">
+                <Skeleton className="h-8 w-[200px]" />
+                <Skeleton className="h-4 w-[300px]" />
+                <Skeleton className="h-[200px] w-full" />
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <Alert variant="destructive" className="m-4">
+                <AlertDescription>{error}</AlertDescription>
+            </Alert>
+        );
+    }
+
+    if (!assignment) {
+        return (
+            <Alert variant="destructive" className="m-4">
+                <AlertDescription>Assignment not found</AlertDescription>
+            </Alert>
+        );
     }
 
     return (
-        <Card>
-            <CardHeader>
-                <CardTitle>{assignment.title}</CardTitle>
-                <CardDescription>{assignment.description}</CardDescription>
-            </CardHeader>
-            <CardContent>
-                <Tabs defaultValue="code" className="w-full">
-                    <TabsList>
-                        <TabsTrigger value="code">Code</TabsTrigger>
-                        <TabsTrigger value="tests">Tests</TabsTrigger>
-                    </TabsList>
-                    <TabsContent value="code">
-                        <CodeContainer project={project} />
-                    </TabsContent>
-                    <TabsContent value="tests">
-                        <Textarea
-                            value={assignment.testCases}
-                            readOnly
-                            className="min-h-[400px] font-mono"
+        <div className="p-4 space-y-4">
+            <div className="flex justify-between items-center">
+                {!isEditing ? (
+                    <>
+                        <h1 className="text-2xl font-bold">{assignment.title}</h1>
+                        <Button onClick={() => setIsEditing(true)}>
+                            Edit Assignment
+                        </Button>
+                    </>
+                ) : (
+                    <h1 className="text-2xl font-bold">Edit Assignment</h1>
+                )}
+            </div>
+
+            {updateSuccess && !isEditing && (
+                <Alert className="bg-green-50 text-green-800 border-green-300">
+                    <AlertDescription>Assignment updated successfully!</AlertDescription>
+                </Alert>
+            )}
+
+            {isEditing ? (
+                <form onSubmit={handleSubmit} className="space-y-4">
+                    <div className="space-y-2">
+                        <label className="block text-sm font-medium">Title</label>
+                        <Input
+                            name="title"
+                            value={formData.title}
+                            onChange={handleInputChange}
+                            placeholder="Assignment title"
+                            required
                         />
-                    </TabsContent>
-                </Tabs>
-                {/* <div className="flex justify-between mt-4">
-          <Button onClick={handleRunTests}>Run Tests</Button>
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="block text-sm font-medium">Description</label>
+                        <Textarea
+                            name="description"
+                            value={formData.description}
+                            onChange={handleInputChange}
+                            placeholder="Assignment description"
+                            rows={4}
+                        />
+                    </div>
+
+                    <div className="space-y-2">
+                        <label className="block text-sm font-medium">Template ID</label>
+                        <Input
+                            name="templateId"
+                            type="number"
+                            value={formData.templateId}
+                            onChange={handleInputChange}
+                            placeholder="Template ID (optional)"
+                        />
+                    </div>
+
+                    <div className="flex space-x-2">
+                        <Button type="submit" disabled={loading}>
+                            {loading ? 'Saving...' : 'Save Changes'}
+                        </Button>
+                        <Button 
+                            type="button" 
+                            variant="outline"
+                            onClick={() => {
+                                setIsEditing(false);
+                                setFormData({
+                                    title: assignment.title,
+                                    description: assignment.description || '',
+                                    templateId: assignment.templateId?.toString() || '',
+                                    files: []
+                                });
+                            }}
+                        >
+                            Cancel
+                        </Button>
+                    </div>
+                </form>
+            ) : (
+                <>
+                    {assignment.description && (
+                        <p className="text-gray-600">{assignment.description}</p>
+                    )}
+                    
+                    <div className="mt-4">
+                        <h2 className="text-xl font-semibold mb-2">Assignment Details</h2>
+                        <div className="space-y-2 text-sm text-gray-600">
+                            <p>Created: {new Date(assignment.createdAt).toLocaleString()}</p>
+                            <p>Last Updated: {new Date(assignment.updatedAt).toLocaleString()}</p>
+                            <p>Bucket URL: {assignment.bucketUrl}</p>
+                            {assignment.templateId && (
+                                <p>Template ID: {assignment.templateId}</p>
+                            )}
+                        </div>
+                    </div>
+                </>
+            )}
         </div>
-        <Textarea
-          value={output}
-          readOnly
-          className="mt-4 min-h-[100px] font-mono"
-          placeholder="Test output will appear here..."
-        /> */}
-            </CardContent>
-        </Card>
-    )
+    );
 }
 
-export default AssignmentDetailPage
-
+export default AssignmentDetailPage;
