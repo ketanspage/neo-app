@@ -23,7 +23,7 @@ router.get('/listTemplates', async (req, res) => {
                 id: templates.id,
                 name: templates.name,
                 description: templates.description,
-                signedUrl: templates.bucketUrl,
+                bucketUrl: templates.bucketUrl,
                 createdAt: templates.createdAt,
                 updatedAt: templates.updatedAt
             })
@@ -41,9 +41,14 @@ router.get('/listTemplates', async (req, res) => {
     }
 });
 
-router.get('/getTemplate/:id', async (req:any, res:any) => {
+router.get('/getTemplate/:id', async (req: any, res: any) => {
     try {
         const { id } = req.params;
+        
+        if (!id || isNaN(parseInt(id))) {
+            return res.status(400).json({ error: 'Invalid template ID' });
+        }
+
         const getTemplate = await db
             .select({
                 id: templates.id,
@@ -60,36 +65,48 @@ router.get('/getTemplate/:id', async (req:any, res:any) => {
             return res.status(404).json({ error: 'Template not found' });
         }
 
-        // Get the template's file content from MinIO
         const template = getTemplate[0];
-        if (!template.bucketUrl) {
-            return res.status(400).json({ error: 'Template bucket URL is missing' });
+        
+        // Instead of parsing the presigned URL, construct the object name directly
+        const bucketName = 'templates';
+        const objectName = `template-${id}.json`;
+
+        try {
+            const dataStream = await minioClient.getObject(bucketName, objectName);
+            let fileContent = '';
+
+            for await (const chunk of dataStream) {
+                fileContent += chunk;
+            }
+
+            let files;
+            try {
+                files = JSON.parse(fileContent);
+            } catch (parseError) {
+                console.error('Error parsing file content:', parseError);
+                return res.status(500).json({ error: 'Failed to parse template files' });
+            }
+
+            return res.status(200).json({
+                message: 'Required template fetched successfully',
+                template: [{
+                    ...template,
+                    files
+                }],
+                count: 1
+            });
+
+        } catch (minioError) {
+            console.error('MinIO error:', minioError);
+            return res.status(500).json({ error: 'Failed to retrieve template files from storage' });
         }
-        const [bucket, ...objectPathParts] = template.bucketUrl.split('/');
-        const objectName = objectPathParts.join('/');
 
-        const dataStream = await minioClient.getObject(bucket, objectName);
-        let fileContent = '';
-
-        // Read the stream
-        for await (const chunk of dataStream) {
-            fileContent += chunk;
-        }
-
-        // Parse the JSON content
-        const files = JSON.parse(fileContent);
-
-        res.status(200).json({
-            message: 'Required template fetched successfully',
-            template: [{
-                ...template,
-                files
-            }],
-            count: 1
-        });
     } catch (error) {
         console.error('Error getting the required template:', error);
-        res.status(500).json({ error: 'Failed to get the required template' });
+        return res.status(500).json({ 
+            error: 'Failed to get the required template',
+            details: (error as Error).message 
+        });
     }
 });
 
