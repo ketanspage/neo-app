@@ -9,7 +9,7 @@ const router = express.Router();
 // Helper function to generate presigned URL
 async function generatePresignedUrl(bucketName: string, objectName: string): Promise<string> {
     try {
-        return await minioClient.presignedGetObject(bucketName, objectName, 24 * 60 * 60); // 24 hours expiry
+        return await minioClient.presignedGetObject(bucketName, objectName, 7 * 24 * 60 * 60); // 7 days expiry
     } catch (error) {
         console.error('Error generating presigned URL:', error);
         throw error;
