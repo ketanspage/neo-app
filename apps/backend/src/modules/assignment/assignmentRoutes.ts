@@ -6,6 +6,15 @@ import { eq } from 'drizzle-orm';
 
 const router = express.Router();
 
+const generatePresignedUrl=async(bucketName:string,objectName:string):Promise<string>=>{
+    try{
+        return await minioClient.presignedGetObject(bucketName,objectName,7*24*60*60);
+    }catch(error){
+        console.error('Error generating presigned URL:',error);
+        throw error;
+    }
+}
+
 router.get('/listAssignments', async (req, res) => {
     try {
         const allAssignments=await db
@@ -85,7 +94,7 @@ router.post('/createAssignment', async (req, res) => {
         await minioClient.putObject(bucketName, objectName, fileContent);
 
         // Generate the bucket URL
-        const bucketUrl = `${bucketName}/${objectName}`;
+        const bucketUrl = await generatePresignedUrl(bucketName, objectName);
 
         // Update the assignment record with the bucket URL
         await db
@@ -113,12 +122,12 @@ router.put('/editAssignment/:id', async (req, res) => {
         const { title, description, templateId, files } = req.body;
         const bucketName = 'assignments';
         const objectName = `assignment-${id}.json`;
-        const bucketUrl = `${bucketName}/${objectName}`;
-
+        
         // Update MinIO
         const fileContent = JSON.stringify(files);
         await minioClient.putObject(bucketName, objectName, fileContent);
 
+        const signedUrl = await generatePresignedUrl(bucketName, objectName);
         // Update database
         const [updatedAssignment] = await db
             .update(assignments)
@@ -126,7 +135,7 @@ router.put('/editAssignment/:id', async (req, res) => {
                 title,
                 description,
                 templateId: templateId || null,
-                bucketUrl,
+                bucketUrl: signedUrl,
                 updatedAt: new Date(),
             })
             .where(eq(assignments.id, parseInt(id)))
