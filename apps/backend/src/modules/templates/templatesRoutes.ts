@@ -155,7 +155,7 @@ router.post('/createTemplate', async (req, res) => {
 router.put('/editTemplate/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, description, files } = req.body;
+        const { name, description, files } = req.body;  // Remove status from here
         const bucketName = 'templates';
         const objectName = `template-${id}.json`;
 
@@ -174,7 +174,7 @@ router.put('/editTemplate/:id', async (req, res) => {
                 description,
                 bucketUrl: signedUrl,
                 updatedAt: new Date(),
-            })
+            })  // Remove status from here
             .where(eq(templates.id, parseInt(id)))
             .returning();
 

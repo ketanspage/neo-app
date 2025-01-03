@@ -1,5 +1,6 @@
 import { useParams } from 'react-router';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
+import sdk from '@stackblitz/sdk';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
@@ -11,8 +12,15 @@ interface Template {
     name: string;
     description: string | null;
     bucketUrl: string;
+    files: Record<string, string>;
     createdAt: string;
     updatedAt: string;
+}
+
+interface BucketData {
+    files: Record<string, string>;
+    loading: boolean;
+    error: string | null;
 }
 
 function TemplateDetailPage() {
@@ -22,15 +30,86 @@ function TemplateDetailPage() {
     const [error, setError] = useState<string | null>(null);
     const [isEditing, setIsEditing] = useState(false);
     const [updateSuccess, setUpdateSuccess] = useState(false);
+    const containerRef = useRef<HTMLDivElement>(null);
+    const editorRef = useRef<any>(null);
+    
+    const [bucketData, setBucketData] = useState<BucketData>({
+        files: {},
+        loading: false,
+        error: null
+    });
 
-    // Form state
     const [formData, setFormData] = useState({
         name: '',
         description: '',
-        bucketUrl: ''
+        files: {}
     });
 
-    // Fetch template metadata
+    const destroyEditor = () => {
+        if (containerRef.current) {
+            containerRef.current.innerHTML = '';
+        }
+        editorRef.current = null;
+    };
+
+    const initializeEditor = async (files: Record<string, string>, isEditMode: boolean = false) => {
+        if (!containerRef.current) return;
+
+        try {
+            destroyEditor();
+
+            const editorElement = document.createElement('div');
+            containerRef.current.appendChild(editorElement);
+
+            const vm = await sdk.embedProject(
+                editorElement,
+                {
+                    files: files,
+                    title: template?.name || 'Template',
+                    description: template?.description || '',
+                    template: 'node'
+                },
+                {
+                    height: 600,
+                    width: '100%',
+                    clickToLoad: false,
+                    openFile: 'index.js', // Default file to open
+                    terminalHeight: 50,
+                    // readOnly: !isEditMode // Make editor readonly when not in edit mode
+                }
+            );
+
+            editorRef.current = vm;
+        } catch (err) {
+            console.error('Error embedding Stackblitz:', err);
+            setBucketData(prev => ({
+                ...prev,
+                error: 'Failed to initialize code editor'
+            }));
+        }
+    };
+
+    const initializeBucketData = async (files: Record<string, string>, isEditMode: boolean = false) => {
+        try {
+            setBucketData(prev => ({ ...prev, loading: true, error: null }));
+            
+            setBucketData({
+                files,
+                loading: false,
+                error: null
+            });
+
+            await initializeEditor(files, isEditMode);
+        } catch (err) {
+            console.error('Error initializing editor:', err);
+            setBucketData(prev => ({
+                ...prev,
+                loading: false,
+                error: err instanceof Error ? err.message : 'Failed to initialize editor'
+            }));
+        }
+    };
+
     const fetchTemplate = async () => {
         try {
             setLoading(true);
@@ -44,12 +123,21 @@ function TemplateDetailPage() {
             }
             
             const templateData = data.template[0];
+            console.log('Received template data:', templateData); // Debug log
+            
             setTemplate(templateData);
-            setFormData({
-                name: templateData.name,
+            const initialFormData = {
+                name: templateData.name || '',
                 description: templateData.description || '',
-                bucketUrl: templateData.bucketUrl || ''
-            });
+                files: templateData.files || {}
+            };
+            console.log('Setting initial form data:', initialFormData); // Debug log
+            setFormData(initialFormData);
+
+            // Initialize editor with template files and edit mode status
+            if (templateData.files) {
+                await initializeBucketData(templateData.files, isEditing);
+            }
         } catch (err) {
             setError(err instanceof Error ? err.message : 'An error occurred');
         } finally {
@@ -61,14 +149,50 @@ function TemplateDetailPage() {
         if (id) {
             fetchTemplate();
         }
+
+        return () => {
+            destroyEditor();
+        };
     }, [id]);
+
+    // Re-initialize editor when editing mode changes
+    useEffect(() => {
+        if (template?.files) {
+            initializeBucketData(template.files, isEditing);
+        }
+    }, [isEditing]);
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
-        setFormData(prev => ({
-            ...prev,
-            [name]: value
-        }));
+        console.log(`Updating ${name} to:`, value); // Debug log
+        setFormData(prev => {
+            const newData = {
+                ...prev,
+                [name]: value
+            };
+            console.log('New form data:', newData); // Debug log
+            return newData;
+        });
+    };
+
+    const handleSaveFiles = async () => {
+        if (!editorRef.current) {
+            throw new Error('Editor not initialized');
+        }
+
+        try {
+            const updatedFiles = await editorRef.current.getFsSnapshot();
+            if (!updatedFiles) {
+                throw new Error('Failed to retrieve code: No files found');
+            }
+            
+            // Log the files to verify content
+            console.log('Updated files:', updatedFiles);
+            return updatedFiles;
+        } catch (error) {
+            console.error('Error getting files:', error);
+            throw new Error('Failed to retrieve code');
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -78,16 +202,23 @@ function TemplateDetailPage() {
             setError(null);
             setUpdateSuccess(false);
 
+            console.log('Form data before submit:', formData); // Debug log
+            const currentFiles = await handleSaveFiles();
+
+            const updateData = {
+                name: formData.name.trim(),
+                description: formData.description.trim(),
+                files: currentFiles
+            };
+
+            console.log('Sending update data:', updateData); // Debug log
+
             const response = await fetch(`http://localhost:3000/api/templates/editTemplate/${id}`, {
                 method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                 },
-                body: JSON.stringify({
-                    name: formData.name,
-                    description: formData.description,
-                    bucketUrl: formData.bucketUrl
-                }),
+                body: JSON.stringify(updateData),
             });
 
             const data = await response.json();
@@ -135,15 +266,11 @@ function TemplateDetailPage() {
     return (
         <div className="p-4 space-y-4">
             <div className="flex justify-between items-center">
-                {!isEditing ? (
-                    <>
-                        <h1 className="text-2xl font-bold">{template.name}</h1>
-                        <Button onClick={() => setIsEditing(true)}>
-                            Edit Template
-                        </Button>
-                    </>
-                ) : (
-                    <h1 className="text-2xl font-bold">Edit Template</h1>
+                <h1 className="text-2xl font-bold">{template.name}</h1>
+                {!isEditing && (
+                    <Button onClick={() => setIsEditing(true)}>
+                        Edit Template
+                    </Button>
                 )}
             </div>
 
@@ -178,12 +305,10 @@ function TemplateDetailPage() {
                     </div>
 
                     <div className="space-y-2">
-                        <label className="block text-sm font-medium">Bucket URL</label>
-                        <Input
-                            name="bucketUrl"
-                            value={formData.bucketUrl}
-                            onChange={handleInputChange}
-                            placeholder="templates/filename.json"
+                        <label className="block text-sm font-medium">Template Code</label>
+                        <div
+                            ref={containerRef}
+                            className="border rounded-md min-h-[600px]"
                         />
                     </div>
 
@@ -195,12 +320,14 @@ function TemplateDetailPage() {
                             type="button" 
                             variant="outline"
                             onClick={() => {
+                                if (template) {
+                                    setFormData({
+                                        name: template.name,
+                                        description: template.description || '',
+                                        files: template.files
+                                    });
+                                }
                                 setIsEditing(false);
-                                setFormData({
-                                    name: template.name,
-                                    description: template.description || '',
-                                    bucketUrl: `http://127.0.0.1:9090/browser/${template.bucketUrl}` || ''
-                                });
                             }}
                         >
                             Cancel
@@ -218,8 +345,23 @@ function TemplateDetailPage() {
                         <div className="space-y-2 text-sm text-gray-600">
                             <p>Created: {new Date(template.createdAt).toLocaleString()}</p>
                             <p>Last Updated: {new Date(template.updatedAt).toLocaleString()}</p>
-                            <p>Bucket URL: {template.bucketUrl}</p>
                         </div>
+                    </div>
+
+                    <div className="mt-4">
+                        <h2 className="text-xl font-semibold mb-2">Template Code</h2>
+                        {bucketData.loading ? (
+                            <Skeleton className="h-[600px] w-full" />
+                        ) : bucketData.error ? (
+                            <Alert variant="destructive">
+                                <AlertDescription>{bucketData.error}</AlertDescription>
+                            </Alert>
+                        ) : (
+                            <div
+                                ref={containerRef}
+                                className="border rounded-md min-h-[600px]"
+                            />
+                        )}
                     </div>
                 </>
             )}

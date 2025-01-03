@@ -94,11 +94,7 @@ function TemplatesList() {
                                 </CardContent>
                             </div>
                             <div className="flex-1 bg-muted p-6 rounded-r-lg">
-                                {template.bucketUrl && (
-                                    <pre className="text-sm overflow-x-auto">
-                                        <code>{template.bucketUrl}</code>
-                                    </pre>
-                                )}
+                                <a href={template.bucketUrl ?? '#'}>View the bucket</a>
                             </div>
                         </Card>
                     ))
