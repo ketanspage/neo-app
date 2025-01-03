@@ -11,10 +11,11 @@ import { Label } from "@/components/ui/label"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { Skeleton } from "@/components/ui/skeleton"
 
-interface Template {
+interface Assignment {
     id: number;
     name: string;
     description: string | null;
+    status: string;
     difficulty:string;
     bucketUrl: string;
     files: Record<string, string>;
@@ -51,9 +52,9 @@ export default function NewAssignmentForm() {
     }
     const navigate = useNavigate()
     const [error, setError] = useState('')
-    const [templates, setTemplates] = useState<Template[]>([])
+    const [templates, setTemplates] = useState<Assignment[]>([])
     const [loading, setLoading] = useState(true)
-    const [selectedTemplate, setSelectedTemplate] = useState<Template | null>(null)
+    const [selectedTemplate, setSelectedTemplate] = useState<Assignment | null>(null)
     const containerRef = useRef<HTMLDivElement>(null)
     const editorRef = useRef<any>(null)
     
@@ -292,23 +293,25 @@ export default function NewAssignmentForm() {
                     <div className="flex flex-col space-y-1.5">
                         <Label htmlFor="template">Template</Label>
                         <Select 
-                            onValueChange={handleTemplateChange}
-                            defaultValue=""
-                        >
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select a template" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {templates.map((template) => (
-                                    <SelectItem 
-                                        key={template.id} 
-                                        value={template.id.toString()}
-                                    >
-                                        {template.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
+    onValueChange={handleTemplateChange}
+    defaultValue=""
+>
+    <SelectTrigger>
+        <SelectValue placeholder="Select a template" />
+    </SelectTrigger>
+    <SelectContent>
+        {templates
+            .filter(template => template.status === 'active')  // Filter active templates
+            .map((template) => (
+                <SelectItem 
+                    key={template.id} 
+                    value={template.id.toString()}
+                >
+                    {template.name}
+                </SelectItem>
+            ))}
+    </SelectContent>
+</Select>
                         {errors.templateId && <span className="text-red-500 text-sm">{errors.templateId.message}</span>}
                     </div>
                 </div>

@@ -6,16 +6,26 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
-
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Badge } from '@/components/ui/badge';
+import { stat } from 'fs';
 interface Template {
     id: number;
     name: string;
     description: string | null;
+    status: 'active' | 'inactive' | 'archived';  // Add this
     bucketUrl: string;
     files: Record<string, string>;
     createdAt: string;
     updatedAt: string;
 }
+
+// Add status levels constant
+const STATUS_LEVELS = [
+    { value: 'active', label: 'Active' },
+    { value: 'inactive', label: 'Inactive' },
+    { value: 'archived', label: 'Archived' }
+] as const;
 
 interface BucketData {
     files: Record<string, string>;
@@ -42,6 +52,7 @@ function TemplateDetailPage() {
     const [formData, setFormData] = useState({
         name: '',
         description: '',
+        status: '',
         files: {}
     });
 
@@ -129,6 +140,7 @@ function TemplateDetailPage() {
             const initialFormData = {
                 name: templateData.name || '',
                 description: templateData.description || '',
+                status: templateData.status || 'active',    
                 files: templateData.files || {}
             };
             console.log('Setting initial form data:', initialFormData); // Debug log
@@ -161,7 +173,13 @@ function TemplateDetailPage() {
             initializeBucketData(template.files, isEditing);
         }
     }, [isEditing]);
-
+    const handleStatusChange = (value: string) => {
+        setFormData(prev => ({
+            ...prev,
+            status: value
+        }));
+    };
+    
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
         const { name, value } = e.target;
         console.log(`Updating ${name} to:`, value); // Debug log
@@ -208,6 +226,7 @@ function TemplateDetailPage() {
             const updateData = {
                 name: formData.name.trim(),
                 description: formData.description.trim(),
+                status: formData.status,
                 files: currentFiles
             };
 
@@ -303,7 +322,27 @@ function TemplateDetailPage() {
                             rows={4}
                         />
                     </div>
-
+                    <div className="space-y-2">
+            <label className="block text-sm font-medium">Change Status</label>
+            <Select 
+                onValueChange={handleStatusChange}
+                defaultValue={formData.status}
+            >
+                <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                    {STATUS_LEVELS.map(({ value, label }) => (
+                        <SelectItem 
+                            key={value} 
+                            value={value}
+                        >
+                            {label}
+                        </SelectItem>
+                    ))}
+                </SelectContent>
+            </Select>
+        </div>
                     <div className="space-y-2">
                         <label className="block text-sm font-medium">Template Code</label>
                         <div
@@ -324,6 +363,7 @@ function TemplateDetailPage() {
                                     setFormData({
                                         name: template.name,
                                         description: template.description || '',
+                                        status: template.status,
                                         files: template.files
                                     });
                                 }
@@ -339,7 +379,10 @@ function TemplateDetailPage() {
                     {template.description && (
                         <p className="text-gray-600">{template.description}</p>
                     )}
-                    
+                    <p>Status: <Badge variant={template.status === 'active' ? 'default' : 
+                    template.status === 'inactive' ? 'secondary' : 'outline'}>
+                    {template.status}
+                </Badge></p>
                     <div className="mt-4">
                         <h2 className="text-xl font-semibold mb-2">Template Details</h2>
                         <div className="space-y-2 text-sm text-gray-600">
@@ -347,6 +390,10 @@ function TemplateDetailPage() {
                             <p>Last Updated: {new Date(template.updatedAt).toLocaleString()}</p>
                         </div>
                     </div>
+                    <div className="mt-4">
+           
+        </div>
+
 
                     <div className="mt-4">
                         <h2 className="text-xl font-semibold mb-2">Template Code</h2>

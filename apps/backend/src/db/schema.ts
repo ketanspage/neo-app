@@ -17,7 +17,8 @@ export const templates = pgTable('templates', {
     id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
     name: varchar('name').notNull(),
     description: varchar('description'),
-    bucketUrl: varchar('bucket_url'), // URL for the JSON file in the bucket
+    status:varchar('status').notNull().default('active'),
+    bucketUrl: varchar('bucket_url'),
     createdAt: timestamp('created_at').defaultNow(),
     updatedAt: timestamp('updated_at').defaultNow()
 });

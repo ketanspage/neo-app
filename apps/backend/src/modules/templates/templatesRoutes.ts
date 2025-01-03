@@ -23,6 +23,7 @@ router.get('/listTemplates', async (req, res) => {
                 id: templates.id,
                 name: templates.name,
                 description: templates.description,
+                status: templates.status,
                 bucketUrl: templates.bucketUrl,
                 createdAt: templates.createdAt,
                 updatedAt: templates.updatedAt
@@ -54,6 +55,7 @@ router.get('/getTemplate/:id', async (req: any, res: any) => {
                 id: templates.id,
                 name: templates.name,
                 description: templates.description,
+                status: templates.status,
                 bucketUrl: templates.bucketUrl,
                 createdAt: templates.createdAt,
                 updatedAt: templates.updatedAt
@@ -121,6 +123,7 @@ router.post('/createTemplate', async (req, res) => {
             .values({
                 name,
                 description,
+                status: 'active', 
                 bucketUrl: '', // Temporary empty value
                 updatedAt: new Date(),
             })
@@ -155,7 +158,7 @@ router.post('/createTemplate', async (req, res) => {
 router.put('/editTemplate/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { name, description, files } = req.body;  // Remove status from here
+        const { name, description, files,status } = req.body;  // Remove status from here
         const bucketName = 'templates';
         const objectName = `template-${id}.json`;
 
@@ -172,6 +175,7 @@ router.put('/editTemplate/:id', async (req, res) => {
             .set({
                 name,
                 description,
+                status,
                 bucketUrl: signedUrl,
                 updatedAt: new Date(),
             })  // Remove status from here

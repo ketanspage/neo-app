@@ -1,0 +1,1 @@
+ALTER TABLE "templates" ADD COLUMN "status" varchar DEFAULT 'active' NOT NULL;
