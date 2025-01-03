@@ -12,7 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 const templates = {
     react: {
         name: 'React Template',
-        type: 'create-react-app',
+        type: 'node',
         files: {
             'src/App.tsx': `import React from 'react';
 
@@ -25,7 +25,7 @@ export default function App() {
 }`,
             'src/index.tsx': `import React from 'react';
 import { createRoot } from 'react-dom/client';
-import App from './App';
+import App from './App.tsx';
 
 const root = createRoot(document.getElementById('root')!);
 root.render(<App />);`,
@@ -37,13 +37,32 @@ root.render(<App />);`,
   <body>
     <div id="root"></div>
   </body>
-</html>`
+</html>`,
+'package.json': `
+{
+  "name": "waptw9nq--run",
+  "version": "0.0.0",
+  "private": true,
+  "dependencies": {
+    "react": "18.1.0",
+    "react-dom": "18.1.0"
+  },
+  "scripts": {
+    "start": "react-scripts start",
+    "build": "react-scripts build",
+    "test": "react-scripts test --env=jsdom",
+    "eject": "react-scripts eject"
+  },
+  "devDependencies": {
+    "react-scripts": "latest"
+  }
+}`
         },
         defaultFile: 'src/App.tsx'
     },
     vanilla: {
         name: 'Vanilla JS Template',
-        type: 'javascript',
+        type: 'node',
         files: {
             'index.js': `// Your JavaScript code here
 document.getElementById('app').innerHTML = \`

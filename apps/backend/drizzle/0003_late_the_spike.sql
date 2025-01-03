@@ -1,0 +1,1 @@
+ALTER TABLE "assignments" ALTER COLUMN "difficulty" DROP NOT NULL;

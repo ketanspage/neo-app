@@ -15,6 +15,7 @@ interface Template {
     id: number;
     name: string;
     description: string | null;
+    difficulty:string;
     bucketUrl: string;
     files: Record<string, string>;
     createdAt: string;
@@ -25,6 +26,7 @@ interface FormData {
     title: string;
     description: string;
     templateId: string;
+    difficulty: string;
 }
 
 interface BucketData {
@@ -34,6 +36,19 @@ interface BucketData {
 }
 
 export default function NewAssignmentForm() {
+    const DIFFICULTY_LEVELS = [
+        { value: 'beginner', label: 'Beginner' },
+        { value: 'intermediate', label: 'Intermediate' },
+        { value: 'advanced', label: 'Advanced' }
+    ] as const;
+    const { register, handleSubmit, formState: { errors }, setValue } = useForm<FormData>({
+        defaultValues: {
+            difficulty: 'beginner'
+        }
+    });
+    const handleDifficultyChange = (value: string) => {
+        setValue('difficulty', value)
+    }
     const navigate = useNavigate()
     const [error, setError] = useState('')
     const [templates, setTemplates] = useState<Template[]>([])
@@ -48,7 +63,6 @@ export default function NewAssignmentForm() {
         error: null
     });
 
-    const { register, handleSubmit, formState: { errors }, setValue } = useForm<FormData>()
 
     const destroyEditor = () => {
         if (containerRef.current) {
@@ -203,6 +217,7 @@ export default function NewAssignmentForm() {
                     title: data.title,
                     description: data.description,
                     templateId: parseInt(data.templateId),
+                    difficulty: data.difficulty,
                     files: currentFiles
                 }),
             })
@@ -252,7 +267,28 @@ export default function NewAssignmentForm() {
                         />
                         {errors.description && <span className="text-red-500 text-sm">{errors.description.message}</span>}
                     </div>
-
+                    <div className="flex flex-col space-y-1.5">
+                        <Label htmlFor="difficulty">Difficulty Level</Label>
+                        <Select 
+                            onValueChange={handleDifficultyChange}
+                            defaultValue="beginner"
+                        >
+                            <SelectTrigger>
+                                <SelectValue placeholder="Select difficulty level" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                {DIFFICULTY_LEVELS.map(({ value, label }) => (
+                                    <SelectItem 
+                                        key={value} 
+                                        value={value}
+                                    >
+                                        {label}
+                                    </SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+                        {errors.difficulty && <span className="text-red-500 text-sm">{errors.difficulty.message}</span>}
+                    </div>
                     <div className="flex flex-col space-y-1.5">
                         <Label htmlFor="template">Template</Label>
                         <Select 

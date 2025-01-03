@@ -3,6 +3,7 @@ import { Link } from 'react-router'
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Badge } from '@/components/ui/badge'
 
 interface Template {
   id: number;
@@ -17,6 +18,7 @@ interface Assignment {
   id: number;
   title: string;
   description: string;
+  difficulty: string;
   templateId: number;
   bucketUrl: string;
   createdAt: string;
@@ -28,6 +30,19 @@ function AssignmentsList() {
   const [templates, setTemplates] = useState<{ [key: number]: Template }>({})
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
+
+  const getDifficultyColor = (difficulty: string) => {
+    switch (difficulty.toLowerCase()) {
+      case 'beginner':
+        return 'bg-green-100 text-green-800 hover:bg-green-100/80'
+      case 'intermediate':
+        return 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100/80'
+      case 'advanced':
+        return 'bg-red-100 text-red-800 hover:bg-red-100/80'
+      default:
+        return 'bg-gray-100 text-gray-800 hover:bg-gray-100/80'
+    }
+  }
 
   useEffect(() => {
     const fetchData = async () => {
@@ -43,12 +58,17 @@ function AssignmentsList() {
           throw new Error(assignmentsData.error || 'Failed to fetch assignments')
         }
 
+        console.log('Assignments data:', assignmentsData); // Debug log
+
+        // Check if assignments exist and use the correct property
+        const assignmentsList = assignmentsData.assignments || []
+
         // Create a set of unique template IDs
-        const templateIds = new Set(assignmentsData.templates.map((assignment: Assignment) => assignment.templateId))
+        const templateIds = new Set(assignmentsList.map((assignment: Assignment) => assignment.templateId))
 
         // Fetch templates
         const templatesMap: { [key: number]: Template } = {}
-        for (const templateId of templateIds as Set<number>) {
+        for (const templateId of templateIds) {
           if (templateId) { // Check if templateId exists
             const templateResponse = await fetch(`http://localhost:3000/api/templates/getTemplate/${templateId}`)
             const templateData = await templateResponse.json()
@@ -59,7 +79,7 @@ function AssignmentsList() {
           }
         }
 
-        setAssignments(assignmentsData.templates)
+        setAssignments(assignmentsList)
         setTemplates(templatesMap)
       } catch (err) {
         setError(err instanceof Error ? err.message : 'An error occurred while fetching data')
@@ -112,30 +132,41 @@ function AssignmentsList() {
               <TableRow>
                 <TableHead>Title</TableHead>
                 <TableHead>Description</TableHead>
-                <TableHead>Template</TableHead>
+                <TableHead>Template Used</TableHead>
+                <TableHead>Difficulty</TableHead>
                 <TableHead>View/Edit Assignment</TableHead>
+                <TableHead>Attempt</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {assignments.map((assignment) => (
-                <TableRow key={assignment.id}>
-                  <TableCell className="font-medium">{assignment.title}</TableCell>
-                  <TableCell>{assignment.description}</TableCell>
-                  <TableCell>
-                    {assignment.templateId && templates[assignment.templateId] 
-                      ? templates[assignment.templateId].name 
-                      : 'No template selected'}
-                  </TableCell>
-                  <TableCell>
-                    <Button asChild>
-                      <Link to={`/assignments/${assignment.id}`}>Click Me</Link>
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-              {assignments.length === 0 && (
+              {assignments.length > 0 ? (
+                assignments.map((assignment) => (
+                  <TableRow key={assignment.id}>
+                    <TableCell className="font-medium">{assignment.title}</TableCell>
+                    <TableCell>{assignment.description}</TableCell>
+                    <TableCell>
+                      {assignment.templateId && templates[assignment.templateId] 
+                        ? templates[assignment.templateId].name 
+                        : 'No template selected'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge className={getDifficultyColor(assignment.difficulty)}>
+                        {assignment.difficulty}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      <Button asChild>
+                        <Link to={`/assignments/${assignment.id}`}>View/Edit</Link>
+                      </Button>
+                    </TableCell>
+                    <TableCell>
+                      <Button variant='outline'>Attempt</Button>
+                    </TableCell>
+                  </TableRow>
+                ))
+              ) : (
                 <TableRow>
-                  <TableCell colSpan={3} className="text-center py-6">
+                  <TableCell colSpan={6} className="text-center py-6">
                     No assignments found
                   </TableCell>
                 </TableRow>

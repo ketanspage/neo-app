@@ -15,6 +15,27 @@
       "when": 1735208854684,
       "tag": "0001_orange_forge",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1735885525734,
+      "tag": "0002_easy_zemo",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1735887053158,
+      "tag": "0003_late_the_spike",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1735887196416,
+      "tag": "0004_left_shen",
+      "breakpoints": true
     }
   ]
 }

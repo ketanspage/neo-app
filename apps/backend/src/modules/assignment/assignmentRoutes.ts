@@ -22,6 +22,7 @@ router.get('/listAssignments', async (req, res) => {
                 id:assignments.id,
                 title:assignments.title,
                 description:assignments.description,
+                difficulty:assignments.difficulty,
                 templateId:assignments.templateId,
                 bucketUrl:assignments.bucketUrl,
                 createdAt:assignments.createdAt,
@@ -31,7 +32,7 @@ router.get('/listAssignments', async (req, res) => {
             .orderBy(assignments.updatedAt);
         res.status(200).json({
             message:'Assignments fetched successfully',
-            templates:allAssignments,
+            assignments:allAssignments,
             count:allAssignments.length
         });
     } catch (error) {
@@ -49,6 +50,7 @@ router.get('/getAssignment/:id', async (req, res) => {
                 id:assignments.id,
                 title:assignments.title,
                 description:assignments.description,
+                difficulty:assignments.difficulty,
                 templateId:assignments.templateId,
                 bucketUrl:assignments.bucketUrl,
                 createdAt:assignments.createdAt,
@@ -71,7 +73,7 @@ router.get('/getAssignment/:id', async (req, res) => {
 
 router.post('/createAssignment', async (req, res) => {
     try {
-        const { title, description, templateId, files } = req.body;
+        const { title, description,difficulty, templateId, files } = req.body;
         const bucketName = 'assignments';
 
         // First, insert into the database to get the generated ID
@@ -80,6 +82,7 @@ router.post('/createAssignment', async (req, res) => {
             .values({
                 title,
                 description,
+                difficulty,
                 templateId: templateId || null,
                 bucketUrl: '', // Temporary empty value
                 updatedAt: new Date(),
@@ -119,7 +122,7 @@ router.post('/createAssignment', async (req, res) => {
 router.put('/editAssignment/:id', async (req, res) => {
     try {
         const { id } = req.params;
-        const { title, description, templateId, files } = req.body;
+        const { title, description,difficulty, templateId, files } = req.body;
         const bucketName = 'assignments';
         const objectName = `assignment-${id}.json`;
         
@@ -134,6 +137,7 @@ router.put('/editAssignment/:id', async (req, res) => {
             .set({
                 title,
                 description,
+                difficulty,
                 templateId: templateId || null,
                 bucketUrl: signedUrl,
                 updatedAt: new Date(),

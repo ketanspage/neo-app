@@ -27,6 +27,7 @@ export const assignments = pgTable('assignments', {
     id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
     title: varchar('title').notNull(),
     description: varchar('description').notNull(),
+    difficulty: varchar('difficulty').notNull().default('beginner'),
     templateId: integer('template_id').references(() => templates.id),
     bucketUrl: varchar('bucket_url'), // URL for the JSON file in the bucket
     createdAt: timestamp('created_at').defaultNow(),
