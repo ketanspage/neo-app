@@ -95,7 +95,7 @@ export default function NewAssignmentForm() {
     return (
         <div className="max-w-5xl">
             <div className='mb-10'>
-                <h1 className='text-2xl font-semibold'>Create New Assignment</h1>
+                <h1 className='text-2xl font-semibold'>Start New Attempt</h1>
                 <p>Add a new coding challenge to improve your skills</p>
             </div>
 
