@@ -64,7 +64,7 @@ function AssignmentsList() {
         const assignmentsList = assignmentsData.assignments || []
 
         // Create a set of unique template IDs
-        const templateIds = new Set(assignmentsList.map((assignment: Assignment) => assignment.templateId))
+        const templateIds = new Set<number>(assignmentsList.map((assignment: Assignment) => assignment.templateId))
 
         // Fetch templates
         const templatesMap: { [key: number]: Template } = {}
