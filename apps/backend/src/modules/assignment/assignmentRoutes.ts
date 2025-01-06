@@ -95,7 +95,7 @@ router.get('/getAssignment/:id', async (req:any, res:any) => {
 
         }catch(minioError){
             console.error('MinIO error:', minioError);
-            return res.status(500).json({ error: 'Failed to retrieve template files from storage' });
+            return res.status(500).json({ error: 'Failed to retrieve assignment files from storage' });
       
         }
     } catch (error) {

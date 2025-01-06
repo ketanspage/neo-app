@@ -134,7 +134,7 @@ function AssignmentsList() {
                 <TableHead>Description</TableHead>
                 <TableHead>Template Used</TableHead>
                 <TableHead>Difficulty</TableHead>
-                <TableHead>View/Edit Assignment</TableHead>
+                <TableHead>View/Edit</TableHead>
                 <TableHead>Attempt</TableHead>
               </TableRow>
             </TableHeader>
@@ -155,12 +155,14 @@ function AssignmentsList() {
                       </Badge>
                     </TableCell>
                     <TableCell>
-                      <Button asChild>
-                        <Link to={`/assignments/${assignment.id}`}>View/Edit</Link>
+                      <Button variant='secondary' asChild>
+                        <Link to={`/assignments/${assignment.id}`}>Click Me</Link>
                       </Button>
                     </TableCell>
                     <TableCell>
-                      <Button variant='outline'>Attempt</Button>
+                      <Button variant='outline'>
+                        <Link to={`/assignments/${assignment.id}/attempts`}>Click Me</Link>
+                      </Button>
                     </TableCell>
                   </TableRow>
                 ))

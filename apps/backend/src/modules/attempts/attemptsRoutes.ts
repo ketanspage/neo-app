@@ -41,9 +41,12 @@ router.get('/listAttempts',async (req, res) => {
     }
 });
 
-router.get('/getAttempt/:id', async (req, res) => {
+router.get('/getAttempt/:id', async (req:any, res:any) => {
     try {
-        const {id}=req.params;
+        const { id } = req.params;
+        if (!id || isNaN(parseInt(id))) {
+            return res.status(400).json({ error: 'Invalid assignment ID' });
+        }
         const getAttempt=await db
         .select({
             id: assignmentAttempts.id,
@@ -57,28 +60,61 @@ router.get('/getAttempt/:id', async (req, res) => {
         })
         .from(assignmentAttempts)
         .where(eq(assignmentAttempts.id,parseInt(id)));
-        res.status(200).json({
-            message: 'Required attempt fetched successfully',
-            attempt: getAttempt,
-            count: getAttempt.length
-        });
+        if (getAttempt.length === 0) {
+            return res.status(404).json({ error: 'Assignment not found' });
+        }
+        const assignment = getAttempt[0];
+        const bucketName = 'attempts';
+        const objectName = `attempt-${id}.json`;
+        try{
+            const dataStream = await minioClient.getObject(bucketName, objectName);
+            let fileContent = '';
+
+            for await (const chunk of dataStream) {
+                fileContent += chunk;
+            }
+
+            let files;
+            try {
+                files = JSON.parse(fileContent);
+            } catch (parseError) {
+                console.error('Error parsing file content:', parseError);
+                return res.status(500).json({ error: 'Failed to parse files' });
+            }
+
+            return res.status(200).json({
+                message: 'Required assignment fetched successfully',
+                assignments: [{
+                    ...assignment,
+                    files
+                }],
+                count: 1
+            });
+        }catch(minioError){
+            console.error('MinIO error:', minioError);
+            return res.status(500).json({ error: 'Failed to retrieve attempt files from storage' });
+      
+        }
     } catch (error) {
-        console.error('Error getting the required attempt:', error);
-        res.status(500).json({ error: 'Failed to get the required attempt' });
+        console.error('Error getting the required assignment attempt:', error);
+        return res.status(500).json({
+            error:'Failed to get the required assignment attempt',
+            details : (error as Error).message
+        })
     }
 });
 
 router.post('/createAttempt', async (req, res) => {
     try {
-        const { files, assignmentId, userId, status, score, feedback } = req.body;
+        const { files, assignmentId, userId,status,score, feedback } = req.body;
         const bucketName = 'attempts';
         const [newAttempt] = await db
             .insert(assignmentAttempts)
             .values({
                 assignmentId,
-                userId,
-                status,
+                userId:1,
                 score,
+                status,
                 feedback,
                 bucketUrl: '',
                 updatedAt: new Date(),
@@ -108,36 +144,6 @@ router.post('/createAttempt', async (req, res) => {
     }
 });
 
-router.put('/editAttempt/:id', async (req, res) => {
-    try {
-        const{ id } = req.params;
-        const { assignmentId,userId,status,score,feedback,files } = req.body;
-        const bucketName = 'attempts';
-        const objectName = `attempt-${id}.json`;
-        const bucketUrl = await generatePresignedUrl(bucketName, objectName);
-        const fileContent = JSON.stringify(files);
-        await minioClient.putObject(bucketName, objectName, fileContent);
-        const [updatedAttempt]=await db
-        .update(assignmentAttempts)
-        .set({
-            assignmentId
-            ,userId
-            ,status
-            ,score
-            ,feedback
-            ,bucketUrl
-            ,updatedAt: new Date(),
-        })
-        .where(eq(assignmentAttempts.id,parseInt(id)))
-        .returning();
-        res.status(200).json({
-            message: 'Attempt updated successfully',
-            attempt: updatedAttempt
-        });
-    } catch (error) {
-        console.error('Error updating attempt:', error);
-        res.status(500).json({ error: 'Failed to updating attempt' });
-    }
-});
+
 
 export default router;

@@ -1,165 +1,250 @@
-import { useState, useEffect } from 'react'
-import { useNavigate } from 'react-router'
-import { useForm, SubmitHandler } from 'react-hook-form'
-import { AlertCircle } from 'lucide-react'
+import React, { useState, useEffect, useRef } from 'react';
+import { useParams, useNavigate } from 'react-router';
+import sdk from '@stackblitz/sdk';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Skeleton } from '@/components/ui/skeleton';
+import { Button } from '@/components/ui/button';
+import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 
-import { Button } from "@/components/ui/button"
-import { Input } from "@/components/ui/input"
-import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Label } from "@/components/ui/label"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
-
-interface Template {
+interface Assignment {
     id: number;
-    name: string;
+    title: string;
     description: string | null;
-    bucketUrl: string;
+    difficulty: string;
+    feedback: string | null;
+    files: Record<string, string>;
     createdAt: string;
     updatedAt: string;
 }
 
-interface FormData {
-    title: string;
-    description: string;
-    templateId: string;
-}
+function NewAttemptPage() {
+    const { id } = useParams<{ id: string }>();
+    const navigate = useNavigate();
+    const [assignment, setAssignment] = useState<Assignment | null>(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState<string | null>(null);
+    const [submitting, setSubmitting] = useState(false);
+    const [feedback, setFeedback] = useState('');
+    const containerRef = useRef<HTMLDivElement>(null);
+    const editorRef = useRef<any>(null);
 
-export default function NewAssignmentForm() {
-    const navigate = useNavigate()
-    const [error, setError] = useState('')
-    const [templates, setTemplates] = useState<Template[]>([])
-    const [loading, setLoading] = useState(true)
-    const { register, handleSubmit, formState: { errors }, setValue, watch } = useForm<FormData>()
-
-    // Fetch templates when component mounts
-    useEffect(() => {
-        const fetchTemplates = async () => {
-            try {
-                const response = await fetch('http://localhost:3000/api/templates/listTemplates')
-                const data = await response.json()
-                
-                if (!response.ok) {
-                    throw new Error(data.error || 'Failed to fetch templates')
-                }
-                
-                setTemplates(data.templates)
-            } catch (err) {
-                setError('Failed to load templates')
-                console.error('Error loading templates:', err)
-            } finally {
-                setLoading(false)
-            }
+    const destroyEditor = () => {
+        if (containerRef.current) {
+            containerRef.current.innerHTML = '';
         }
+        editorRef.current = null;
+    };
 
-        fetchTemplates()
-    }, [])
-
-    const onSubmit: SubmitHandler<FormData> = async (data) => {
-        setError('')
+    const initializeEditor = async (files: Record<string, string>) => {
+        if (!containerRef.current) return;
 
         try {
-            // Find the selected template to get its files
-            const selectedTemplate = templates.find(t => t.id === parseInt(data.templateId))
-            
-            if (!selectedTemplate) {
-                throw new Error('Selected template not found')
+            destroyEditor();
+
+            const editorElement = document.createElement('div');
+            containerRef.current.appendChild(editorElement);
+
+            if (!Object.keys(files).length) {
+                throw new Error('No files available to display');
             }
 
-            const response = await fetch('http://localhost:3000/api/assignments/createAssignment', {
+            const vm = await sdk.embedProject(
+                editorElement,
+                {
+                    files: files,
+                    title: assignment?.title || 'Assignment Attempt',
+                    description: assignment?.description || '',
+                    template: 'node'
+                },
+                {
+                    height: 600,
+                    width: '100%',
+                    clickToLoad: false,
+                    openFile: Object.keys(files)[0],
+                    terminalHeight: 50
+                }
+            );
+
+            editorRef.current = vm;
+        } catch (err) {
+            console.error('Editor initialization error:', err);
+            setError('Failed to initialize code editor');
+        }
+    };
+
+    const fetchAssignment = async () => {
+        try {
+            setLoading(true);
+            setError(null);
+            
+            const response = await fetch(`http://localhost:3000/api/assignments/getAssignment/${id}`);
+            const data = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(data.error || 'Failed to fetch assignment');
+            }
+            
+            const assignmentData = data.assignments[0];
+            
+            if (!assignmentData) {
+                throw new Error('Assignment not found');
+            }
+    
+            setAssignment(assignmentData);
+    
+            if (assignmentData.files) {
+                await initializeEditor(assignmentData.files);
+            }
+        } catch (err) {
+            console.error('Fetch error:', err);
+            setError(err instanceof Error ? err.message : 'An error occurred');
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    useEffect(() => {
+        if (id) {
+            fetchAssignment();
+        }
+
+        return () => {
+            destroyEditor();
+        };
+    }, [id]);
+
+    const handleSubmitAttempt = async () => {
+        if (!editorRef.current || !assignment) {
+            setError('Editor not initialized');
+            return;
+        }
+
+        try {
+            setSubmitting(true);
+            setError(null);
+
+            // Get current files from editor
+            const files = await editorRef.current.getFsSnapshot();
+            if (!files) {
+                throw new Error('No files to submit');
+            }
+
+            // Create the attempt
+            const response = await fetch('http://localhost:3000/api/attempts/createAttempt', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                 },
                 body: JSON.stringify({
-                    title: data.title,
-                    description: data.description,
-                    templateId: parseInt(data.templateId),
-                    files: {} // You might want to get this from the template or allow user input
+                    files,
+                    assignmentId: assignment.id,
+                    userId: 1, // You might want to get this from authentication context
+                    status: 'Submitted',
+                    score: null,
+                    feedback
                 }),
-            })
+            });
 
-            const result = await response.json()
+            const data = await response.json();
 
             if (!response.ok) {
-                throw new Error(result.error || 'Failed to create assignment')
+                throw new Error(data.error || 'Failed to submit attempt');
             }
 
-            // Redirect to assignments list after successful creation
-            navigate('/assignments')
+            // Navigate to attempts list
+            navigate('/attempts');
         } catch (err) {
-            setError(err instanceof Error ? err.message : 'Failed to create assignment')
+            console.error('Submit error:', err);
+            setError(err instanceof Error ? err.message : 'Failed to submit attempt');
+        } finally {
+            setSubmitting(false);
         }
+    };
+
+    const getDifficultyColor = (difficulty: string) => {
+        switch (difficulty.toLowerCase()) {
+            case 'beginner':
+                return 'bg-green-100 text-green-800';
+            case 'intermediate':
+                return 'bg-yellow-100 text-yellow-800';
+            case 'advanced':
+                return 'bg-red-100 text-red-800';
+            default:
+                return 'bg-gray-100 text-gray-800';
+        }
+    };
+
+    if (loading) {
+        return (
+            <div className="space-y-4 p-4">
+                <Skeleton className="h-8 w-[200px]" />
+                <Skeleton className="h-4 w-[300px]" />
+                <Skeleton className="h-[600px] w-full" />
+            </div>
+        );
+    }
+
+    if (error) {
+        return (
+            <Alert variant="destructive" className="m-4">
+                <AlertDescription>{error}</AlertDescription>
+            </Alert>
+        );
+    }
+
+    if (!assignment) {
+        return (
+            <Alert variant="destructive" className="m-4">
+                <AlertDescription>Assignment not found</AlertDescription>
+            </Alert>
+        );
     }
 
     return (
-        <div className="max-w-5xl">
-            <div className='mb-10'>
-                <h1 className='text-2xl font-semibold'>Start New Attempt</h1>
-                <p>Add a new coding challenge to improve your skills</p>
-            </div>
-
-            <form onSubmit={handleSubmit(onSubmit)}>
-                <div className="grid w-full items-center gap-4">
-                    <div className="flex flex-col space-y-1.5">
-                        <Label htmlFor="title">Title</Label>
-                        <Input
-                            id="title"
-                            placeholder="Enter assignment title"
-                            {...register("title", { required: "Title is required" })}
-                        />
-                        {errors.title && <span className="text-red-500 text-sm">{errors.title.message}</span>}
-                    </div>
-
-                    <div className="flex flex-col space-y-1.5">
-                        <Label htmlFor="description">Description</Label>
-                        <Textarea
-                            id="description"
-                            placeholder="Describe the assignment"
-                            {...register("description", { required: "Description is required" })}
-                        />
-                        {errors.description && <span className="text-red-500 text-sm">{errors.description.message}</span>}
-                    </div>
-
-                    <div className="flex flex-col space-y-1.5">
-                        <Label htmlFor="template">Template</Label>
-                        <Select 
-                            onValueChange={(value) => setValue('templateId', value)}
-                            defaultValue=""
+        <div className="p-4 space-y-4">
+            <Card>
+                <CardHeader>
+                    <div className="flex justify-between items-start">
+                        <div className="space-y-2">
+                            <CardTitle>{assignment.title}</CardTitle>
+                            <Badge className={getDifficultyColor(assignment.difficulty)}>
+                                {assignment.difficulty}
+                            </Badge>
+                        </div>
+                        <Button 
+                            onClick={handleSubmitAttempt}
+                            disabled={submitting}
                         >
-                            <SelectTrigger>
-                                <SelectValue placeholder="Select a template" />
-                            </SelectTrigger>
-                            <SelectContent>
-                                {templates.map((template) => (
-                                    <SelectItem 
-                                        key={template.id} 
-                                        value={template.id.toString()}
-                                    >
-                                        {template.name}
-                                    </SelectItem>
-                                ))}
-                            </SelectContent>
-                        </Select>
-                        {errors.templateId && <span className="text-red-500 text-sm">{errors.templateId.message}</span>}
+                            {submitting ? 'Submitting...' : 'Submit Attempt'}
+                        </Button>
                     </div>
+                    {assignment.description && (
+                        <CardDescription>{assignment.description}</CardDescription>
+                    )}
+                </CardHeader>
+                <CardContent>
+                    <div className="space-y-8">
+                          <div>
+                            <h2 className="text-lg font-semibold mb-2">Your Solution</h2>
+                            <div
+                                ref={containerRef}
+                                className="border rounded-md min-h-[600px]"
+                            />
+                        </div>
+                        <div>
+                <h2 className="text-lg font-semibold mb-2">Feedback</h2>
+                <Textarea onChange={(e) => setFeedback(e.target.value)} value={feedback}></Textarea>
                 </div>
-
-                <div className="flex justify-between mt-10">
-                    <Button type="button" variant="outline" onClick={() => navigate('/assignments')}>
-                        Cancel
-                    </Button>
-                    <Button type="submit">Create Assignment</Button>
-                </div>
-            </form>
-
-            {error && (
-                <Alert variant="destructive" className="mt-4">
-                    <AlertCircle className="h-4 w-4" />
-                    <AlertTitle>Error</AlertTitle>
-                    <AlertDescription>{error}</AlertDescription>
-                </Alert>
-            )}
+               
+                    </div>
+                </CardContent>
+                
+            </Card>
         </div>
-    )
+    );
 }
+
+export default NewAttemptPage;

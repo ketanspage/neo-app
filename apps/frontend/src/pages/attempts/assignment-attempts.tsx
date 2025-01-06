@@ -3,68 +3,101 @@ import { useParams } from 'react-router'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
-import {Link} from 'react-router'
+import { Link } from 'react-router'
+
 interface Attempt {
   id: string;
-  submittedAt: string;
-  status: 'Pending' | 'Passed' | 'Failed';
+  assignmentId: string;
+  userId: string;
+  status: string;
   score: number;
+  feedback: string;
+  bucketUrl: string;
+  updatedAt: string;
 }
 
 function AssignmentAttempts() {
   const { id } = useParams<{ id: string }>()
   const [attempts, setAttempts] = useState<Attempt[]>([])
-  const [assignment, setAssignment] = useState<{ title: string } | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
 
   useEffect(() => {
-    // Simulating API calls to fetch assignment details and attempts
-    const fetchAssignmentAndAttempts = async () => {
-      // In a real application, these would be API calls
-      const assignmentResponse = await new Promise<{ title: string }>((resolve) =>
-        setTimeout(() => resolve({ title: 'Introduction to Python' }), 500)
-      );
-      setAssignment(assignmentResponse);
+    const fetchAttempts = async () => {
+      try {
+        setLoading(true)
+        const response = await fetch('http://localhost:3000/api/attempts/listAttempts')
+        
+        const data = await response.json()
+        setAttempts(data.attempts)
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to fetch attempts')
+      } finally {
+        setLoading(false)
+      }
+    }
 
-      const attemptsResponse = await new Promise<Attempt[]>((resolve) =>
-        setTimeout(() => resolve([
-          { id: '1', submittedAt: '2023-06-25 14:30', status: 'Passed', score: 95 },
-          { id: '2', submittedAt: '2023-06-24 10:15', status: 'Failed', score: 65 },
-          { id: '3', submittedAt: '2023-06-23 09:00', status: 'Passed', score: 80 },
-        ]), 1000)
-      );
-      setAttempts(attemptsResponse);
-    };
+    fetchAttempts()
+  }, [])
 
-    fetchAssignmentAndAttempts();
-  }, [id]);
+  if (loading) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div>Loading attempts...</div>
+        </CardContent>
+      </Card>
+    )
+  }
 
-  const handleNewAttempt = () => {
-   
-  };
+  if (error) {
+    return (
+      <Card>
+        <CardContent className="p-6">
+          <div className="text-red-500">Error: {error}</div>
+        </CardContent>
+      </Card>
+    )
+  }
 
   return (
     <Card>
       <CardHeader>
-        <CardTitle>{assignment?.title || 'Loading...'}</CardTitle>
+        <CardTitle>Assignment Attempts</CardTitle>
         <CardDescription>View your attempts and start a new one</CardDescription>
       </CardHeader>
       <CardContent>
-      <Button asChild>
-                    <Link to="/attempts/new">Start New attempts</Link>
-                </Button>        <Table>
+     
+        <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Submitted At</TableHead>
+              <TableHead>UserID</TableHead>
+              <TableHead>AssignmentID</TableHead>
+              <TableHead>Date</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Score</TableHead>
+              <TableHead>Feedback</TableHead>
+              <TableHead>Actions</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {attempts.map((attempt) => (
               <TableRow key={attempt.id}>
-                <TableCell>{attempt.submittedAt}</TableCell>
+                <TableCell>{attempt.userId}</TableCell>
+                <TableCell>{attempt.assignmentId}</TableCell>
+                <TableCell>{new Date(attempt.updatedAt).toLocaleDateString()}</TableCell>
                 <TableCell>{attempt.status}</TableCell>
                 <TableCell>{attempt.score}</TableCell>
+                <TableCell>{attempt.feedback || '-'}</TableCell>
+                <TableCell>
+                  {attempt.bucketUrl && (
+                    <Button variant="outline" size="sm" asChild>
+                      <a href={attempt.bucketUrl} target="_blank" rel="noopener noreferrer">
+                        View Submission
+                      </a>
+                    </Button>
+                  )}
+                </TableCell>
               </TableRow>
             ))}
           </TableBody>
@@ -75,4 +108,3 @@ function AssignmentAttempts() {
 }
 
 export default AssignmentAttempts
-

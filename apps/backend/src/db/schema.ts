@@ -40,7 +40,7 @@ export const assignmentAttempts = pgTable('assignment_attempts', {
     id: integer('id').primaryKey().generatedAlwaysAsIdentity(),
     assignmentId: integer('assignment_id').notNull().references(() => assignments.id),
     userId: integer('user_id').notNull().references(() => users.id),
-    status: varchar('status').notNull(), // e.g., 'submitted', 'graded'
+    status: varchar('status').notNull(), // e.g., 'passed', 'failed', 'pending'
     score: integer('score'),
     feedback: varchar('feedback'),
     bucketUrl: varchar('bucket_url'), // URL for the JSON file in the bucket
